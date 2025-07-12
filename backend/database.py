@@ -34,3 +34,10 @@ def get_history():
     rows = cursor.fetchall()
     conn.close()
     return rows
+
+def clear_history():
+    conn = sqlite3.connect("chat_history.db")
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM messages')
+    conn.commit()
+    conn.close()
