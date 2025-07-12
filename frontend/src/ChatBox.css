@@ -1,0 +1,20 @@
+.mic-button {
+  padding: 10px;
+  margin-left: 10px;
+  border-radius: 8px;
+  border: none;
+  background-color: #007bff;
+  color: white;
+  transition: background 0.3s ease;
+}
+
+.mic-button.listening {
+  background-color: #ff4d4d;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
