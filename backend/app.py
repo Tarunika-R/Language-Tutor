@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from chat_controller import handle_chat
 from database import init_db, save_message, get_history
-from database import clear_history  # add this to imports
 
 app = Flask(__name__)
 CORS(app)
@@ -39,11 +38,6 @@ def history():
         }
         for r in rows
     ])
-
-@app.route("/clear-history", methods=["POST"])
-def clear():
-    clear_history()
-    return jsonify({"message": "Chat history cleared."})
 
 if __name__ == "__main__":
     app.run(debug=True)
