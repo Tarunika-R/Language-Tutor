@@ -1,130 +1,99 @@
 import React, { useState, useRef } from 'react';
 import axios from 'axios';
-import './ChatBox.css'; 
+import './ChatBox.css';
 
 function ChatBox() {
   const [input, setInput] = useState('');
-  const [response, setResponse] = useState('');
-  const [feedback, setFeedback] = useState('');
-  const [corrected, setCorrected] = useState('');
+  const [history, setHistory] = useState([]);
   const [isListening, setIsListening] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
   const recognitionRef = useRef(null);
-  const timerRef = useRef(null);
 
   const speakText = (text) => {
-    const synth = window.speechSynthesis;
-    const utterance = new SpeechSynthesisUtterance(text);
+    const utterance = new SpeechSynthesisUtterance(text.replace(/[\u{1F600}-\u{1F64F}]/gu, ''));
     utterance.lang = 'en-US';
-    synth.speak(utterance);
+    window.speechSynthesis.speak(utterance);
   };
 
   const sendMessage = async (message = input) => {
     if (!message.trim()) return;
 
+    const userMsg = { sender: 'user', text: message, timestamp: new Date().toISOString() };
+    setHistory((prev) => [...prev, userMsg]);
+    setInput('');
+
     try {
-      const res = await axios.post('http://localhost:5000/chat', {
-        message: message,
-      });
-
-      setInput(message);
-      setResponse(res.data.response);
-      setFeedback(res.data.feedback);
-      setCorrected(res.data.correction);
-
+      const res = await axios.post('http://localhost:5000/chat', { message });
+      const botMsg = {
+        sender: 'bot',
+        text: res.data.response,
+        correction: res.data.correction,
+        feedback: res.data.feedback,
+        timestamp: new Date().toISOString(),
+      };
+      setHistory((prev) => [...prev, botMsg]);
       speakText(res.data.feedback);
     } catch (error) {
-      setFeedback('❌ Error contacting server.');
       console.error(error);
     }
   };
 
   const startListening = () => {
     if (!('webkitSpeechRecognition' in window)) {
-      alert('Browser does not support speech recognition.');
+      alert('Speech recognition not supported in this browser.');
       return;
     }
 
     const recognition = new window.webkitSpeechRecognition();
     recognition.lang = 'en-US';
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-
-    recognition.onstart = () => {
-      setIsListening(true);
-      setRecordingTime(0);
-      timerRef.current = setInterval(() => {
-        setRecordingTime((prev) => prev + 1);
-      }, 1000);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-      clearInterval(timerRef.current);
-      setRecordingTime(0);
-    };
-
-    recognition.onerror = (event) => {
-      console.error('Speech recognition error:', event.error);
-      setIsListening(false);
-      clearInterval(timerRef.current);
-    };
-
-    recognition.onresult = (event) => {
-      const spokenText = event.results[0][0].transcript;
-      sendMessage(spokenText);
-    };
-
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = (e) => console.error(e);
+    recognition.onresult = (e) => sendMessage(e.results[0][0].transcript);
     recognition.start();
     recognitionRef.current = recognition;
   };
 
-  const getHighlightedDiff = (original, corrected) => {
-    if (!original || !corrected) return null;
-
-    const origWords = original.split(' ');
-    const corrWords = corrected.split(' ');
-
-    const maxLen = Math.max(origWords.length, corrWords.length);
-
-    return corrWords.map((word, i) => {
-      const isDifferent = word !== origWords[i];
-      return (
-        <span key={i} style={{ backgroundColor: isDifferent ? '#ffc' : 'transparent' }}>
-          {word + ' '}
-        </span>
-      );
-    });
+  const formatTime = (isoString) => {
+    const date = new Date(isoString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
-    <div>
-      <div style={{ marginBottom: '10px' }}>
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Type or speak a sentence..."
-          style={{ width: '60%', padding: '10px', marginRight: '10px' }}
-        />
-        <button onClick={() => sendMessage()} style={{ padding: '10px' }}>
-          Send
-        </button>
-        <button onClick={startListening} className={`mic-button ${isListening ? 'listening' : ''}`}>
-          🎤 {isListening ? `Recording... (${recordingTime}s)` : 'Speak'}
-        </button>
+    <div className="chat-box">
+      <div className="chat-history">
+        {history.map((msg, idx) => (
+          <div key={idx} className={`chat-bubble ${msg.sender}`}>
+            <div className="avatar">
+              {msg.sender === 'user' ? '🧑' : '🤖'}
+            </div>
+            <div className="message">
+              <div className="text">{msg.text}</div>
+              {msg.feedback && (
+                <div className="feedback">{msg.feedback}</div>
+              )}
+              {msg.correction && msg.sender === 'bot' && (
+                <div className="correction">
+                  <strong>Correction:</strong> {msg.correction}
+                </div>
+              )}
+              <div className="timestamp">{formatTime(msg.timestamp)}</div>
+            </div>
+          </div>
+        ))}
       </div>
 
-      <div style={{ marginTop: '20px' }}>
-        <strong>Bot:</strong> {response}
-        <div style={{ marginTop: '10px', background: '#eef', padding: '10px', borderRadius: '5px' }}>
-          <strong>Feedback:</strong> {feedback}
-        </div>
-        {corrected && (
-          <div style={{ marginTop: '10px' }}>
-            <strong>Highlighted Correction:</strong><br />
-            {getHighlightedDiff(input, corrected)}
-          </div>
-        )}
+      <div className="chat-input">
+        <input
+          type="text"
+          placeholder="Type your sentence..."
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+        />
+        <button onClick={() => sendMessage()}>Send</button>
+        <button onClick={startListening} className={`mic-button ${isListening ? 'listening' : ''}`}>
+          🎤 {isListening ? 'Listening...' : 'Speak'}
+        </button>
       </div>
     </div>
   );

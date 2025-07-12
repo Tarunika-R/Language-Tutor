@@ -1,10 +1,11 @@
 import React from 'react';
 import ChatBox from './ChatBox';
+import './App.css';
 
 function App() {
   return (
-    <div style={{ padding: 20 }}>
-      <h2>Language Practice Tutor</h2>
+    <div className="app-container">
+      <h1 className="app-title">Language Practice Tutor 🗣️</h1>
       <ChatBox />
     </div>
   );
