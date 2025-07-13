@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import './ChatBox.css';
 
@@ -6,20 +6,37 @@ function ChatBox() {
   const [input, setInput] = useState('');
   const [history, setHistory] = useState([]);
   const [isListening, setIsListening] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
   const recognitionRef = useRef(null);
+  const messagesEndRef = useRef(null);
+  const [theme, setTheme] = useState('light');
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [history]);
+
+  useEffect(() => {
+    document.body.className = '';
+    document.body.classList.add(theme);
+  }, [theme]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   const speakText = (text) => {
-    const utterance = new SpeechSynthesisUtterance(text.replace(/[\u{1F600}-\u{1F64F}]/gu, ''));
+    const utterance = new SpeechSynthesisUtterance(text.replace(/\p{Emoji}/gu, ''));
     utterance.lang = 'en-US';
     window.speechSynthesis.speak(utterance);
   };
 
   const sendMessage = async (message = input) => {
     if (!message.trim()) return;
-
     const userMsg = { sender: 'user', text: message, timestamp: new Date().toISOString() };
     setHistory((prev) => [...prev, userMsg]);
     setInput('');
+    setIsTyping(true);
 
     try {
       const res = await axios.post('http://localhost:5000/chat', { message });
@@ -34,6 +51,8 @@ function ChatBox() {
       speakText(res.data.feedback);
     } catch (error) {
       console.error(error);
+    } finally {
+      setIsTyping(false);
     }
   };
 
@@ -59,18 +78,21 @@ function ChatBox() {
   };
 
   return (
-    <div className="chat-box">
+    <div className={`chat-box ${darkMode ? 'dark' : ''}`}>
+      <div className="chat-header">
+        <h3>Language Tutor Chat</h3>
+        <button onClick={() => setDarkMode((prev) => !prev)} className="theme-toggle">
+          {darkMode ? '☀️ Light Mode' : '🌙 Dark Mode'}
+        </button>
+      </div>
+
       <div className="chat-history">
         {history.map((msg, idx) => (
           <div key={idx} className={`chat-bubble ${msg.sender}`}>
-            <div className="avatar">
-              {msg.sender === 'user' ? '🧑' : '🤖'}
-            </div>
+            <div className="avatar">{msg.sender === 'user' ? '🧑' : '🤖'}</div>
             <div className="message">
               <div className="text">{msg.text}</div>
-              {msg.feedback && (
-                <div className="feedback">{msg.feedback}</div>
-              )}
+              {msg.feedback && <div className="feedback">{msg.feedback}</div>}
               {msg.correction && msg.sender === 'bot' && (
                 <div className="correction">
                   <strong>Correction:</strong> {msg.correction}
@@ -80,6 +102,17 @@ function ChatBox() {
             </div>
           </div>
         ))}
+        {isTyping && (
+          <div className="chat-bubble bot">
+            <div className="avatar">🤖</div>
+            <div className="message typing">
+              <span className="dot"></span>
+              <span className="dot"></span>
+              <span className="dot"></span>
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
       </div>
 
       <div className="chat-input">
@@ -94,6 +127,16 @@ function ChatBox() {
         <button onClick={startListening} className={`mic-button ${isListening ? 'listening' : ''}`}>
           🎤 {isListening ? 'Listening...' : 'Speak'}
         </button>
+      </div>
+
+      <div className="theme-selector">
+        <select value={theme} onChange={(e) => setTheme(e.target.value)}>
+          <option value="light">🌞 Light</option>
+          <option value="dark">🌙 Dark</option>
+          <option value="ocean">🌊 Ocean</option>
+          <option value="forest">🌲 Forest</option>
+          <option value="rose">🌸 Rose</option>
+        </select>
       </div>
     </div>
   );
